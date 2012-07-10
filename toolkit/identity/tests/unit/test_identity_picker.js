@@ -5,14 +5,10 @@
 
 Cu.import("resource://gre/modules/identity/IdentityPicker.jsm", pickId);
 
-function test_overall() {
+add_test(function test_overall() {
   do_check_eq(typeof pickId, "function");
   run_next_test();
-}
-
-let TESTS = [test_overall];
-
-TESTS.forEach(add_test);
+});
 
 function run_test() {
   run_next_test();
