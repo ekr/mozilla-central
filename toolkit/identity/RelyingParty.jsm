@@ -303,7 +303,7 @@ IdentityRelyingParty.prototype = {
 
     let cert = this._store.fetchIdentity(email)['cert'];
     if (cert) {
-      this._generateAssertion(audience, email, function generatedAssertion(err, assertion) {
+      this._generateAssertion(audience, email, {}, function generatedAssertion(err, assertion) {
         if (err) {
           log("ERROR: _getAssertion:", err);
         }
@@ -328,7 +328,7 @@ IdentityRelyingParty.prototype = {
    *        (function) callback to invoke on completion
    *                   with first-positional parameter the error.
    */
-  _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback) {
+  _generateAssertion: function _generateAssertion(aAudience, aIdentity, aExtraParams, aCallback) {
     log("_generateAssertion: audience:", aAudience, "identity:", aIdentity);
 
     let id = this._store.fetchIdentity(aIdentity);
@@ -348,7 +348,7 @@ IdentityRelyingParty.prototype = {
       return;
     }
 
-    jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
+    jwcrypto.generateAssertionWithExtraParams(id.cert, kp, aAudience, aExtraParams, aCallback);
   },
 
   /**
