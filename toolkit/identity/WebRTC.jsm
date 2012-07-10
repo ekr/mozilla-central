@@ -46,5 +46,6 @@ function createAuthModule(aIDP, aCallback) {
     // For Persona, creation of the AuthModule is actually synchronous,
     // but it maybe different for other protocol, so we use a callback.
     aCallback(null, new AuthModule(aIDP));
-  }
+  });
 }
+

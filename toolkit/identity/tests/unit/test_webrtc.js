@@ -7,14 +7,22 @@
 var webrtc = {};
 Cu.import("resource://gre/modules/identity/WebRTC.jsm", webrtc);
 
-function test_overall() {
-  do_check_neq(webrtc.AuthModule, null);
+add_test(function test_overall() {
+  do_check_neq(webrtc.createAuthModule, null);
   run_next_test();
-}
+});
 
-let TESTS = [test_overall];
-
-TESTS.forEach(add_test);
+add_test(function test_instantiate_auth_module() {
+  webrtc.createAuthModule({
+                              idp:"browserid.org",
+                              protocol:"persona"
+                          }
+                          , function(err, result) {
+                       do_check_eq(err, null);
+                       do_check_neq(result, null);
+                       run_next_test();
+                   });
+});
 
 function run_test() {
   run_next_test();
