@@ -3,7 +3,7 @@
 
 "use strict";
 
-Cu.import("resource://gre/modules/identity/IdentityPicker.jsm", pickId);
+Cu.import("resource://gre/modules/identity/IdentityPicker.jsm");
 
 add_test(function test_overall() {
   do_check_eq(typeof pickId, "function");
