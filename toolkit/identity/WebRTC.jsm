@@ -4,21 +4,13 @@
 
 "use strict";
 
-const EXPORTED_SYMBOLS = ["IdentityPicker", "AuthModule"];
+const EXPORTED_SYMBOLS = ["AuthModule"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/identity/Identity.jsm");
-
-function IdentityPicker() {
-}
-IdentityPicker.prototype = {
-  pick: function(obj, cb) {
-
-  }
-};
 
 function AuthModule() {
 }
