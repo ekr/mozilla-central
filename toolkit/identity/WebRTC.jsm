@@ -38,13 +38,13 @@ function createAuthModule(aIDP, aCallback) {
   }
 
   if (aIDP.protocol != "persona") {
-    aCallback(new Error("Protocol " + aIDP.protocol + " not supported!"));
+    aCallback(new Error("Protocol " + aIDP.protocol + " not supported!"), null);
     return;
   }
 
   CommonUtils.nextTick(function() {
     // For Persona, creation of the AuthModule is actually synchronous,
     // but it maybe different for other protocol, so we use a callback.
-    aCallback(new AuthModule(aIDP));
+    aCallback(null, new AuthModule(aIDP));
   }
 }
