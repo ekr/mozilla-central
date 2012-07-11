@@ -116,7 +116,39 @@ function test_dsa() {
   jwcrypto.generateKeyPair("DS160", checkDSA);
 }
 
-var TESTS = [test_sanity, test_generate, test_get_assertion];
+function test_sign_extra_stuff() {
+  do_test_pending();
+
+  jwcrypto.generateKeyPair(
+    "DS160",
+    function(err, kp) {
+      var extras = {
+        flan: "Yes",
+        pie: "Yes",
+        marzipan: "No"
+      };
+      jwcrypto.generateAssertionWithExtraParams("bogus-cert", kp, RP_ORIGIN, extras, function(err, assertion) {
+        do_check_null(err);
+
+        // XXX roll some JS jwcrypto into jwcrypto.jsm until the
+        // c++ crypto verification and b64-decoding bits are in?
+
+        // XXX verify signature
+
+        // XXX base64 extract payload
+
+        do_test_finished();
+        run_next_test();
+      });
+    });
+
+}
+
+var TESTS = [
+  test_sanity,
+  test_generate,
+  test_get_assertion,
+  test_sign_extra_stuff];
 
 TESTS = TESTS.concat([test_rsa, test_dsa]);
 
