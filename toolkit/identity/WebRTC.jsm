@@ -21,7 +21,7 @@ function AuthModule(aIDP) {
 AuthModule.prototype = {
   sign: function(aID, aCallback) {
     // XXX: Check for validity of these fields?
-    if (!aIDP.origin) {
+    if (!aID.origin) {
       aCallback(new Error("Origin not provided!"), null);
       return;
     }
@@ -36,8 +36,10 @@ AuthModule.prototype = {
       return;
     }
 
+    // This will crash if we haven't already picked an identity,
+    // and RP has a cert for the idp
     RelyingParty._generateAssertion(
-      aID.origin, aID.identity, aID.message, aCallback
+      aID.origin, aID.identity, aID.message, {}, aCallback
     );
   },
   verify: function(aAssertion, aCallback) {
@@ -67,4 +69,3 @@ function createAuthModule(aIDP, aCallback) {
     aCallback(null, new AuthModule(aIDP));
   });
 }
-
