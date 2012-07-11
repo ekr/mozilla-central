@@ -10,16 +10,35 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/identity/RelyingParty.jsm");
 
 Cu.import("resource://services-common/utils.js");
 
 function AuthModule(aIDP) {
-  // XXX: How do we know aIDP.idp is valid?
+  // XXX: How do we know aIDP.idp aIDP.origin are valid?
   this._idp = aIDP;
 }
 AuthModule.prototype = {
   sign: function(aID, aCallback) {
+    // XXX: Check for validity of these fields?
+    if (!aIDP.origin) {
+      aCallback(new Error("Origin not provided!"), null);
+      return;
+    }
 
+    if (!aID.identity) {
+      aCallback(new Error("Identity not provided!"), null);
+      return;
+    }
+
+    if (!aID.message) {
+      aCallback(new Error("Message not provided!"), null);
+      return;
+    }
+
+    RelyingParty._generateAssertion(
+      aID.origin, aID.identity, aID.message, aCallback
+    );
   },
   verify: function(aAssertion, aCallback) {
 
