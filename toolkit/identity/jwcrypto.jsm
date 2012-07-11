@@ -96,12 +96,27 @@ jwcryptoClass.prototype = {
     aCallback(true);
   },
 
+  _extractAssertionComponents: function _extractAssertionComponents(aSignedObject) {
+    if (typeof (aSignedObject) !== 'string') {
+      throw("_extractAssertionComponents: String argument required");
+    }
+    var parts = aSignedObject.split('.');
+    if (parts.length !== 3) {
+      throw("_extractAssertionComponents: Invalid signed object");
+    }
+
+    // we verify based on the actual string
+    // FIXME: we should validate that the header contains only proper fields
+    return {header: JSON.parse(this.base64Decode(parts[0])),
+            payload: JSON.parse(this.base64Decode(parts[1])),
+            signature: parts[2]};
+  },
+
   base64Encode: function(aToEncode) {
     return IdentityCryptoService.base64UrlEncode(aToEncode);
   },
 
   base64Decode: function(aToDecode) {
-    log("what is it?", (typeof IdentityCryptoService.base64UrlDecode));
     return IdentityCryptoService.base64UrlDecode(aToDecode);
   },
 
@@ -142,8 +157,16 @@ jwcryptoClass.prototype = {
 
   generateAssertion: function(aCert, aKeyPair, aAudience, aCallback) {
     this.generateAssertionWithExtraParams(aCert, aKeyPair, aAudience, {}, aCallback);
-  }
+  },
 
+  verifyAssertion: function verifyAssertion(aSignedObject, aPublicKey, aCallback) {
+    try {
+      let components = this._extractAssertionComponents(aSignedObject);
+      aCallback(null, components);
+    } catch (err) {
+      aCallback(err);
+    }
+  }
 };
 
 var jwcrypto = new jwcryptoClass();

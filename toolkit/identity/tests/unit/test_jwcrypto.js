@@ -49,7 +49,7 @@ function test_generate() {
   });
 }
 
-function test_get_assertion() {
+function test_get_and_verify_assertion() {
   do_test_pending();
 
   jwcrypto.generateKeyPair(
@@ -57,12 +57,17 @@ function test_get_assertion() {
     function(err, kp) {
       jwcrypto.generateAssertion("fake-cert", kp, RP_ORIGIN, function(err, assertion) {
         do_check_null(err);
+        do_check_neq(assertion, null);
 
-        // more checks on assertion
-        log("assertion", assertion);
+        let {0:cert, 1:signedObject} = assertion.split("~");
+        do_check_eq(cert, "fake-cert");
 
-        do_test_finished();
-        run_next_test();
+        jwcrypto.verifyAssertion(signedObject, kp, function(err, results) {
+          do_check_null(err);
+          do_check_eq(results.header.alg, "DS128"); // argh!
+          do_test_finished();
+          run_next_test();
+        });
       });
     });
 }
@@ -142,25 +147,24 @@ function test_sign_extra_stuff() {
       jwcrypto.generateAssertionWithExtraParams("bogus-cert", kp, RP_ORIGIN, extras, function(err, assertion) {
         do_check_null(err);
 
-        // XXX roll some JS jwcrypto into jwcrypto.jsm until the
-        // c++ crypto verification and b64-decoding bits are in?
+        let {0: cert, 1: signedObject} = assertion.split("~");
 
-        // XXX verify signature
-
-        // XXX base64 extract payload
-
-        do_test_finished();
-        run_next_test();
+        jwcrypto.verifyAssertion(signedObject, kp, function(err, results) {
+          do_check_eq(err, null);
+          do_check_eq(results.payload.flan, "Yes");
+          do_check_eq(results.payload.marzipan, "No");
+          do_test_finished();
+          run_next_test();
+        });
       });
     });
-
 }
 
 var TESTS = [
   test_sanity,
   test_base64_roundtrip,
   test_generate,
-  test_get_assertion,
+  test_get_and_verify_assertion,
   test_sign_extra_stuff];
 
 TESTS = TESTS.concat([test_rsa, test_dsa]);
