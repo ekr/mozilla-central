@@ -26,6 +26,18 @@ function test_sanity() {
   });
 }
 
+function test_base64_roundtrip() {
+  do_test_pending();
+
+  let message = "Attack at dawn!";
+  let encoded = jwcrypto.base64Encode(message);
+  let decoded = jwcrypto.base64Decode(encoded);
+  do_check_neq(message, encoded);
+  do_check_eq(decoded, message);
+  do_test_finished();
+  run_next_test();
+}
+
 function test_generate() {
   do_test_pending();
   jwcrypto.generateKeyPair("DS160", function(err, kp) {
@@ -146,6 +158,7 @@ function test_sign_extra_stuff() {
 
 var TESTS = [
   test_sanity,
+  test_base64_roundtrip,
   test_generate,
   test_get_assertion,
   test_sign_extra_stuff];

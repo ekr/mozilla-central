@@ -96,6 +96,15 @@ jwcryptoClass.prototype = {
     aCallback(true);
   },
 
+  base64Encode: function(aToEncode) {
+    return IdentityCryptoService.base64UrlEncode(aToEncode);
+  },
+
+  base64Decode: function(aToDecode) {
+    log("what is it?", (typeof IdentityCryptoService.base64UrlDecode));
+    return IdentityCryptoService.base64UrlDecode(aToDecode);
+  },
+
   generateKeyPair: function(aAlgorithmName, aCallback) {
     log("generating");
     generateKeyPair(aAlgorithmName, aCallback);
@@ -105,8 +114,7 @@ jwcryptoClass.prototype = {
     // for now, we hack the algorithm name
     // XXX bug 769851
     var header = {"alg": "DS128"};
-    var headerBytes = IdentityCryptoService.base64UrlEncode(
-                          JSON.stringify(header));
+    var headerBytes = this.base64Encode(JSON.stringify(header));
 
     var payload = {
       // expires in 2 minutes
@@ -120,8 +128,7 @@ jwcryptoClass.prototype = {
       payload[k] = aExtraParams[k];
     });
 
-    var payloadBytes = IdentityCryptoService.base64UrlEncode(
-                          JSON.stringify(payload));
+    var payloadBytes = this.base64Encode(JSON.stringify(payload));
 
     sign(headerBytes + "." + payloadBytes, aKeyPair, function(err, signature) {
       if (err) {

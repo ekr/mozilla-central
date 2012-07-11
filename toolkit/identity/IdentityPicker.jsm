@@ -14,7 +14,14 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/identity/Identity.jsm");
 
+
+
 function IdentityPicker() {
+  XPCOMUtils.defineLazyModuleGetter(
+    this, "createAuthModule", "resource://gre/modules/identity/WebRTC.jsm");
+
+  this.authModule = null;
+  return this;
 }
 
 IdentityPicker.prototype = {
@@ -26,6 +33,16 @@ IdentityPicker.prototype = {
    * for now, protocol is hardwired to BrowserID
    */
   pickId: function(aCallback) {
+    let idp = "browserid.org";
+    let identity = "Ben Adidia";
+
+    this.createAuthModule(idp, function(err, aAuthModule) {
+      return aCallback(null, {
+        identity: identity,
+        idp: idp,
+        protocol: PROTOCOL
+      });
+    });
   }
 };
 
