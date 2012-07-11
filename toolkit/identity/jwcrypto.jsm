@@ -101,7 +101,7 @@ jwcryptoClass.prototype = {
     generateKeyPair(aAlgorithmName, aCallback);
   },
 
-  generateAssertionWithExtraParams: function(aCert, aKeypair, aAudience, aExtraParams, aCallback) {
+  generateAssertionWithExtraParams: function(aCert, aKeyPair, aAudience, aExtraParams, aCallback) {
     // for now, we hack the algorithm name
     // XXX bug 769851
     var header = {"alg": "DS128"};
@@ -119,20 +119,20 @@ jwcryptoClass.prototype = {
     Object.keys(aExtraParams).forEach(function(k) {
       payload[k] = aExtraParams[k];
     });
-    
+
     var payloadBytes = IdentityCryptoService.base64UrlEncode(
                           JSON.stringify(payload));
 
-    log("payload bytes", payload, payloadBytes);
     sign(headerBytes + "." + payloadBytes, aKeyPair, function(err, signature) {
-      if (err)
+      if (err) {
         return aCallback(err);
+      }
 
       var signedAssertion = headerBytes + "." + payloadBytes + "." + signature;
       return aCallback(null, aCert + "~" + signedAssertion);
-    });    
+    });
   },
-  
+
   generateAssertion: function(aCert, aKeyPair, aAudience, aCallback) {
     this.generateAssertionWithExtraParams(aCert, aKeyPair, aAudience, {}, aCallback);
   }

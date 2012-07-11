@@ -139,7 +139,9 @@ IDService.prototype = {
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
     let self = this;
-    this.RP._generateAssertion(rp.origin, aIdentity, function hadReadyAssertion(err, assertion) {
+
+    // XXX we should not be calling an underscore method in RP
+    this.RP._generateAssertion(rp.origin, aIdentity, {}, function hadReadyAssertion(err, assertion) {
       if (!err && assertion) {
         self.RP._doLogin(rp, rpLoginOptions, assertion);
         return;
@@ -189,7 +191,8 @@ IDService.prototype = {
           // Provisioning flows end when a certificate has been registered.
           // Thus IdentityProvider's registerCertificate() cleans up the
           // current provisioning flow.  We only do this here on error.
-          self.RP._generateAssertion(rp.origin, aIdentity, function gotAssertion(err, assertion) {
+          // XXX RP should provide a non-private function - or remove the underscore
+          self.RP._generateAssertion(rp.origin, aIdentity, {}, function gotAssertion(err, assertion) {
             if (err) {
               rp.doError(err);
               return;
