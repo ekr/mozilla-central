@@ -324,6 +324,10 @@ IdentityRelyingParty.prototype = {
    * @param aIdentity
    *        (string) the email we're logging in with
    *
+   * @param aExtraParams
+   *        (string) extra fields in the signed block that will contain
+   *                 the assertion (optional).
+   *
    * @param aCallback
    *        (function) callback to invoke on completion
    *                   with first-positional parameter the error.
