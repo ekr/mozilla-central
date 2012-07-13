@@ -6,15 +6,40 @@
 // imports IdentityPicker, AuthModule
 let webrtc = {};
 Cu.import("resource://gre/modules/identity/WebRTC.jsm", webrtc);
+Cu.import("resource://gre/modules/identity/Identity.jsm");
 Cu.import("resource://gre/modules/identity/IdentityPicker.jsm");
 
 let saved_state = {};
 let TEST_FINGERPRINT = uuid();
 
+/**
+ * setup_picked_identity - utility function for these tests to
+ * simulate the user interaction that chooses and maybe authenticates
+ * an identity when webrtc.selectIdentity is called for a given
+ * origin.
+ *
+ * If an identity cannot be picked, aCallback is called with an error.
+ *
+ * If an identity is successfully selected, aCallback is called with
+ * null (no error) and an AuthModule instance.
+ */
 function setup_picked_identity(aCallback) {
   // Setup a browserid identity
   setup_test_identity(TEST_USER, TEST_CERT, function() {
-    // Now pick the browserid identity and get an authModule back for it
+
+    let observer = {
+      QueryInterface: XPCOMUtils.generateQI([Ci.snISupports, Ci.nsIObserver]),
+      observe: function (aSubject, aTopic, aData) {
+        if (aTopic === "identity-request") {
+          // Now pick the browserid identity and get an authModule back for it
+          IdentityService.selectIdentity(aSubject.wrappedJSObject.rpId, TEST_USER);
+        }
+      }
+    };
+    // Register an observer for the identity-request signal that will be
+    // emitted when WebRTC's selectIdentity function issues a request().
+    Services.obs.addObserver(observer, "identity-request", false);
+
     webrtc.selectIdentity(TEST_FINGERPRINT, aCallback);
   });
 }
@@ -24,42 +49,35 @@ add_test(function test_overall() {
   run_next_test();
 });
 
-/*
-add_test(function test_instantiate_auth_module_fail() {
-  webrtc.createAuthModule({
-    //idp:"browserid.org",
-    protocol:"persona"
-  }, function(err, result) {
-    do_check_neq(err, null);
-    do_check_eq(result, null);
+
+add_test(function test_instantiate_auth_module() {
+  setup_picked_identity(function(err, authModule) {
+    do_check_eq(err, null);
+    do_check_eq((typeof authModule), 'object');
     run_next_test();
   });
 });
 
 add_test(function test_get_assertion() {
-  webrtc.createAuthModule({
-    idp:"browserid.org",
-    protocol:"persona"
-  }, function(err, result) {
+  setup_picked_identity(function(err, authModule) {
     do_check_eq(err, null);
-    do_check_neq(result, null);
+    do_check_neq(authModule, null);
 
-    result.sign({
-      identity:"ben@adida.net",
-      origin:"https://example.com",
-      message:"testmessage"
-    }, function(err, result) {
+    let test_origin = "https://example.com";
+    let test_message = "I like pie!";
+
+    authModule.sign(test_origin, test_message, function(err, assertion) {
       do_check_eq(err, null);
-      do_check_neq(result, null);
-      do_check_neq(result.assertion,null);
+      do_check_neq(assertion, null);
 
-      saved_state.assertion = result.assertion;
+      saved_state.assertion = assertion;
 
       run_next_test();
     });
   });
 });
 
+/*
 add_test(function test_check_assertion_success() {
   webrtc.createAuthModule({
     idp: "browserid.org",
