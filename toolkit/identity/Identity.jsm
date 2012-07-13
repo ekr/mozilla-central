@@ -111,7 +111,7 @@ IDService.prototype = {
    * if not logged in with this identity.
    */
   fetchIdentity: function fetchIdentity(aIdentity) {
-
+    return this._store.fetchIdentity(aIdentity);
   },
 
   /**
