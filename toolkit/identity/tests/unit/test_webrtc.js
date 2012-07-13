@@ -3,11 +3,9 @@
 
 "use strict";
 
-// imports IdentityPicker, AuthModule
 let webrtc = {};
 Cu.import("resource://gre/modules/identity/WebRTC.jsm", webrtc);
 Cu.import("resource://gre/modules/identity/Identity.jsm");
-Cu.import("resource://gre/modules/identity/IdentityPicker.jsm");
 
 let saved_state = {};
 let TEST_FINGERPRINT = uuid();
