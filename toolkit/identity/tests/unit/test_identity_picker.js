@@ -10,6 +10,14 @@ add_test(function test_overall() {
   run_next_test();
 });
 
+add_test(function test_pickid() {
+  pickId(function(err, authModule) {
+    do_check_eq(err, null);
+    do_check_eq(authModule.idp, "browserid.org");
+    run_next_test();
+  });
+});
+
 function run_test() {
   run_next_test();
 }

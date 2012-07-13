@@ -77,8 +77,6 @@ IdentityRelyingParty.prototype = {
    *                  - doReady()
    *                  - doLogin()
    *                  - doLogout()
-   *                  - doError()
-   *                  - doCancel()
    *
    */
   watch: function watch(aRpCaller) {
@@ -297,6 +295,8 @@ IdentityRelyingParty.prototype = {
     }
 
     // We might not have any identity info for this email
+    // XXX wha? why are we doing this and then testing in the
+    // next line whether we have a cert for this email?
     if (!this._store.fetchIdentity(email)) {
       this._store.addIdentity(email, null, null);
     }
@@ -311,6 +311,7 @@ IdentityRelyingParty.prototype = {
         return aCallback(err, assertion);
       });
     }
+    return aCallback("_getAssertion: No certificate for " + email);
   },
 
   /**

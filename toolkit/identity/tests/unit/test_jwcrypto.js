@@ -62,9 +62,9 @@ function test_get_and_verify_assertion() {
         let {0:cert, 1:signedObject} = assertion.split("~");
         do_check_eq(cert, "fake-cert");
 
-        jwcrypto.verifyAssertion(signedObject, kp, function(err, results) {
+        jwcrypto.verifyAssertion(signedObject, kp, function(err, payload) {
           do_check_null(err);
-          do_check_eq(results.header.alg, "DS128"); // argh!
+          do_check_eq(payload.aud, RP_ORIGIN);
           do_test_finished();
           run_next_test();
         });
@@ -149,10 +149,10 @@ function test_sign_extra_stuff() {
 
         let {0: cert, 1: signedObject} = assertion.split("~");
 
-        jwcrypto.verifyAssertion(signedObject, kp, function(err, results) {
+        jwcrypto.verifyAssertion(signedObject, kp, function(err, payload) {
           do_check_eq(err, null);
-          do_check_eq(results.payload.flan, "Yes");
-          do_check_eq(results.payload.marzipan, "No");
+          do_check_eq(payload.flan, "Yes");
+          do_check_eq(payload.marzipan, "No");
           do_test_finished();
           run_next_test();
         });

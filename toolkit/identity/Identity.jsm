@@ -56,7 +56,7 @@ IDService.prototype = {
         log("NOW SELECT", aSubject.wrappedJSObject);
         // We have authenticated in order to provision an identity.
         // So try again.
-        this.selectIdentity(subject.rpId, subject.identity);
+        this.selectIdentity(subject.rpId, identity);
         break;
     }
   },
@@ -103,6 +103,30 @@ IDService.prototype = {
     if (this._store.fetchIdentity(aIdentity) === null) {
       this._store.addIdentity(aIdentity, null, null);
     }
+  },
+
+  /**
+   * Expose the store's fetchIdentity method.  Returns
+   * an object containing the cert and keypair.  null
+   * if not logged in with this identity.
+   */
+  fetchIdentity: function fetchIdentity(aIdentity) {
+
+  },
+
+  /**
+   * If the user is logged in at aOrigin, return the login identity,
+   * else return null.
+   *
+   * @param aOrigin
+   *        (string) the origin to check
+   */
+  getLoggedInEmail: function getLoggedInEmail(aOrigin) {
+    let loginState = this._store.getLoginState(aOrigin);
+    if (loginState) {
+      return loginState.isLoggedIn ? loginState.email : null;
+    }
+    return null;
   },
 
   /**

@@ -4,16 +4,27 @@
 "use strict";
 
 // imports IdentityPicker, AuthModule
-var webrtc = {};
+let webrtc = {};
 Cu.import("resource://gre/modules/identity/WebRTC.jsm", webrtc);
+Cu.import("resource://gre/modules/identity/IdentityPicker.jsm");
 
-var saved_state = {};
+let saved_state = {};
+let TEST_FINGERPRINT = uuid();
+
+function setup_picked_identity(aCallback) {
+  // Setup a browserid identity
+  setup_test_identity(TEST_USER, TEST_CERT, function() {
+    // Now pick the browserid identity and get an authModule back for it
+    webrtc.selectIdentity(TEST_FINGERPRINT, aCallback);
+  });
+}
 
 add_test(function test_overall() {
-  do_check_neq(webrtc.createAuthModule, null);
+  do_check_eq((typeof webrtc.selectIdentity), 'function');
   run_next_test();
 });
 
+/*
 add_test(function test_instantiate_auth_module_fail() {
   webrtc.createAuthModule({
     //idp:"browserid.org",
@@ -69,7 +80,7 @@ add_test(function test_check_assertion_success() {
     });
   });
 });
-
+*/
 function run_test() {
   run_next_test();
 }

@@ -107,7 +107,8 @@ jwcryptoClass.prototype = {
 
     // we verify based on the actual string
     // FIXME: we should validate that the header contains only proper fields
-    return {header: JSON.parse(this.base64Decode(parts[0])),
+    return {signed: parts[0] + '.' + parts[1],
+            header: JSON.parse(this.base64Decode(parts[0])),
             payload: JSON.parse(this.base64Decode(parts[1])),
             signature: parts[2]};
   },
@@ -162,7 +163,12 @@ jwcryptoClass.prototype = {
   verifyAssertion: function verifyAssertion(aSignedObject, aPublicKey, aCallback) {
     try {
       let components = this._extractAssertionComponents(aSignedObject);
-      aCallback(null, components);
+//      aPublicKey.verify(components.signed, components.signature, function(err, result) {
+//        if (err) {
+//        return aCallback(err);
+//        }
+        return aCallback(null, components.payload);
+//      });
     } catch (err) {
       aCallback(err);
     }

@@ -4,42 +4,33 @@
 
 "use strict";
 
-const EXPORTED_SYMBOLS = ["createAuthModule"];
+const EXPORTED_SYMBOLS = ["selectIdentity"];
+const DEFAULT_IDP = "browserid.org";
+const DEFAULT_PROTOCOL = "persona";
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/identity/Identity.jsm");
 Cu.import("resource://gre/modules/identity/RelyingParty.jsm");
 
 Cu.import("resource://services-common/utils.js");
 
-function AuthModule(aIDP) {
+function AuthModule(aFingerprint, aIdentity) {
   // XXX: How do we know aIDP.idp aIDP.origin are valid?
-  this._idp = aIDP;
+  this.fingerprint = aFingerprint;
+  this.identity = aIdentity.identity;
+  this.idp = aIdentity.idp || DEFAULT_IDP;
+  this.protocol = aIdentity.protocol || DEFAULT_PROTOCOL;
 }
+
 AuthModule.prototype = {
-  sign: function(aID, aCallback) {
-    // XXX: Check for validity of these fields?
-    if (!aID.origin) {
-      aCallback(new Error("Origin not provided!"), null);
-      return;
-    }
-
-    if (!aID.identity) {
-      aCallback(new Error("Identity not provided!"), null);
-      return;
-    }
-
-    if (!aID.message) {
-      aCallback(new Error("Message not provided!"), null);
-      return;
-    }
-
-    // This will crash if we haven't already picked an identity,
-    // and RP has a cert for the idp
+  sign: function(aOrigin, aMessage, aCallback) {
+    // XXX need to deal with the case where the cert has expired between
+    // selectIdentity and now
     RelyingParty._generateAssertion(
-      aID.origin, aID.identity, aID.message, {}, aCallback
+      aOrigin, this.identity, aID.message, aCallback
     );
   },
   verify: function(aAssertion, aCallback) {
@@ -47,25 +38,78 @@ AuthModule.prototype = {
   }
 };
 
-function createAuthModule(aIDP, aCallback) {
-  if (!aIDP.idp) {
-    aCallback(new Error("IDP not provided!"), null);
-    return;
-  }
+/**
+ * Select an identity for use by a WEBRTC PeerConnection
+ *
+ * @param aFingerprint
+ *        (integer)         The unique fingerprint of the PeerConnection
+ *
+ * @param aCallback
+ *        (function)        Called after the user has successfully selected
+ *                          an identity.  First argument to callback will be
+ *                          a string error (if any) or null.  If no error,
+ *                          second argument will be a dictionary containing:
+ *
+ *                          {idp:        The user's identity provider,
+ *                           identity:   The user's identity,
+ *                           protocol:   "persona",
+ *                           assertion:  IdP certificate + assertion for PC origin,
+ *                           authModule: Pointer to an AuthModule}
+ */
+let selectIdentity = function selectIdentity(aFingerprint, aCallback) {
+  // Create a client object representing the PeerConnection to be
+  // used in provisioning and authentication flows.  The PeerConnection
+  // is treated as an RP whose origin is the fingerprint of the PC.
+  let origin = 'webrtc://'+aFingerprint.toString();
+  let client = {
+    id: aFingerprint,
+    loggedInEmail: null,
+    origin: origin,
+    doError: doError,
+    doLogin: doLogin,
+    doLogout: function(){},
+    doReady: function(){}
+  };
 
-  if (!aIDP.protocol) {
-    aCallback(new Error("Protocol not provided!"), null);
-    return;
+  // XXX assume that PeerConnection fingerprints are always unique
+  // If not, login won't be triggered the second time a fingerprint
+  // is used - only ready.
+  function doError(err) {
+    return aCallback(err);
   }
+  function doLogin(assertion) {
+    // Find out what email was used to log in.  It's hard to imagine
+    // how this could come back null (i.e., not logged in), except by
+    // a very fast logout race condition.
+    let email = IdentityService.getLoggedInEmail(client.origin);
+    if (! email) {
+      return aCallback("User did not login successfully");
+    }
 
-  if (aIDP.protocol != "persona") {
-    aCallback(new Error("Protocol " + aIDP.protocol + " not supported!"), null);
-    return;
-  }
+    let cert = IdentityService.fetchIdentity(email).cert;
 
-  CommonUtils.nextTick(function() {
+    // Great success!  OMG WEBRTC+BID BFF #FTW!
+
     // For Persona, creation of the AuthModule is actually synchronous,
-    // but it maybe different for other protocol, so we use a callback.
-    aCallback(null, new AuthModule(aIDP));
-  });
-}
+    // but it maybe different for other protocols, so we use a callbacks
+    // on nextTick.
+    Cu.nextTick(function () {
+      let identity = {
+        identity: email,
+        idp: DEFAULT_IDP,
+        origin: origin
+      };
+      return aCallback(null, {
+        cert: cert,
+        assertion: assertion,
+        authModule: new AuthModule(aFingerprint, identity)
+      });
+    });
+  }
+
+  // Register listeners
+  IdentityService.RP.watch(client);
+
+  // Request an identity
+  IdentityService.RP.request(client.id, {});
+};
