@@ -47,7 +47,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include "nsThreadUtils.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Scoped.h"
-
+#include "databuffer.h"
 #include "MediaConduitInterface.h"
 #include "AudioConduit.h"
 #include "VideoConduit.h"
@@ -56,14 +56,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 typedef struct od_img_plane od_img_plane;
 typedef struct od_img od_img;
 typedef struct daala_enc_ctx daala_enc_ctx;
+typedef struct daala_dec_ctx daala_dec_ctx;
 
 namespace mozilla {
 
-struct EncodedFrame {
+class EncodedFrame {
+ public:
+  EncodedFrame() : data(nullptr) {}
+  ~EncodedFrame() { delete data; }
+
   uint32_t width_;
   uint32_t height_;
-  uint8_t value_;
   uint32_t timestamp_;
+  DataBuffer* data;
 };
 
 class WebrtcDaalaVideoEncoder : public WebrtcVideoEncoder {
@@ -75,7 +80,7 @@ class WebrtcDaalaVideoEncoder : public WebrtcVideoEncoder {
 
   // Implement VideoEncoder interface.
   virtual int32_t InitEncode(const webrtc::VideoCodec* codecSettings,
-                                   int32_t numberOfCores,
+                                     int32_t numberOfCores,
                                    uint32_t maxPayloadSize);
 
   virtual int32_t Encode(const webrtc::I420VideoFrame& inputImage,
@@ -104,7 +109,6 @@ class WebrtcDaalaVideoEncoder : public WebrtcVideoEncoder {
   webrtc::EncodedImageCallback* callback_;
   mozilla::Mutex mutex_;
   ::daala_enc_ctx *enc_ctx_;
-  ::od_img *img_;
 };
 
 
@@ -138,6 +142,7 @@ class WebrtcDaalaVideoDecoder : public WebrtcVideoDecoder {
   webrtc::DecodedImageCallback* callback_;
   webrtc::I420VideoFrame decoded_image_;
   mozilla::Mutex mutex_;
+  ::daala_dec_ctx *dec_ctx_;
 };
 
 }

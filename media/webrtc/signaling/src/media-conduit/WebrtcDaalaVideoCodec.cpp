@@ -5,6 +5,7 @@
 #include "logging.h"
 #include "nspr.h"
 
+#include <cstdio>
 #include <iostream>
 
 #include <mozilla/Scoped.h>
@@ -27,14 +28,25 @@ WebrtcDaalaVideoEncoder::WebrtcDaalaVideoEncoder()
   : timestamp_(0),
     callback_(nullptr),
     mutex_("WebrtcDaalaVideoEncoder"),
-    enc_ctx_(nullptr),
-    img_(nullptr) {
+    enc_ctx_(nullptr) {
   nsIThread* thread;
 
   nsresult rv = NS_NewNamedThread("encoder-thread", &thread);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
 
   thread_ = thread;
+}
+
+static void dump_ogg_packet(const ogg_packet& op) {
+  printf("Packet\n");
+  for (long i=0; i<op.bytes; ++i) {
+    printf("0x%.2x,", op.packet[i]);
+    if ((i+1) % 8)
+      printf(" ");
+    else
+      printf("\n");
+  }
+  printf("\n\n");
 }
 
 int32_t WebrtcDaalaVideoEncoder::InitEncode(
@@ -69,13 +81,15 @@ int32_t WebrtcDaalaVideoEncoder::InitEncode(
     int r = daala_encode_flush_header(enc_ctx_,
                                       &dc,
                                       &op);
+
     if (!r)
       break;
+
+    dump_ogg_packet(op);
   }
 
   return WEBRTC_VIDEO_CODEC_OK;
 }
-
 
 static void init_plane(const uint8_t *data, unsigned char dec,
                        od_img_plane *plane) {
@@ -90,7 +104,7 @@ int32_t WebrtcDaalaVideoEncoder::Encode(
     const webrtc::CodecSpecificInfo* codecSpecificInfo,
     const std::vector<webrtc::VideoFrameType>* frame_types) {
   PRIntervalTime t0 = PR_IntervalNow();
-  EncodedFrame encoded;
+  int encoded_ct = 0;
 
   const uint8_t* y = inputImage.buffer(webrtc::kYPlane);
   const uint8_t* u = inputImage.buffer(webrtc::kUPlane);
@@ -127,6 +141,21 @@ int32_t WebrtcDaalaVideoEncoder::Encode(
 
     /* We have a packet, let's output it */
     MOZ_MTLOG(ML_DEBUG, "Packet size " << op.bytes);
+    {
+      MutexAutoLock lock(mutex_);
+      // Warning: constructing the encoded and pushing it on made things sad.
+      // The value of data was bogus.
+      // TODO(ekr@rtfm.com): investigate
+      EncodedFrame dummy;
+      frames_.push(dummy);
+      EncodedFrame& encoded = frames_.front();
+      encoded.width_ = inputImage.width();
+      encoded.height_ = inputImage.height();
+      encoded.timestamp_ = timestamp_;
+      encoded.data = new DataBuffer(op.packet, op.bytes);
+      // encoded.data = new DataBuffer(op.packet, 500);
+      ++encoded_ct;
+    }
   }
   PRIntervalTime t1 = PR_IntervalNow();
   MOZ_MTLOG(ML_DEBUG, "Daala Frame encoded; Encoding time = "
@@ -134,21 +163,14 @@ int32_t WebrtcDaalaVideoEncoder::Encode(
 
   const uint8_t* buffer = y;
 
-  encoded.width_ = inputImage.width();
-  encoded.height_ = inputImage.height();
-  encoded.value_ = *buffer;
-  encoded.timestamp_ = timestamp_;
-  timestamp_ += 90000 / 30;
-
-  MutexAutoLock lock(mutex_);
-  frames_.push(encoded);
-
-  RUN_ON_THREAD(thread_,
-                WrapRunnable(
-                    // RefPtr keeps object alive.
-                    nsRefPtr<WebrtcDaalaVideoEncoder>(this),
-                    &WebrtcDaalaVideoEncoder::EmitFrames),
-                NS_DISPATCH_NORMAL);
+  if (encoded_ct) {
+    RUN_ON_THREAD(thread_,
+                  WrapRunnable(
+                      // RefPtr keeps object alive.
+                      nsRefPtr<WebrtcDaalaVideoEncoder>(this),
+                      &WebrtcDaalaVideoEncoder::EmitFrames),
+                  NS_DISPATCH_NORMAL);
+  }
 
   return WEBRTC_VIDEO_CODEC_OK;
 }
@@ -170,9 +192,9 @@ void WebrtcDaalaVideoEncoder::EmitFrame(EncodedFrame *frame) {
   encoded_image._timeStamp = frame->timestamp_;  // TODO(ekr@rtfm.com): Fix times
   encoded_image.capture_time_ms_ = 0;
   encoded_image._frameType = webrtc::kKeyFrame;
-  encoded_image._buffer=reinterpret_cast<uint8_t *>(frame);
-  encoded_image._length = sizeof(EncodedFrame);
-  encoded_image._size = sizeof(EncodedFrame);
+  encoded_image._buffer= const_cast<uint8_t *>(frame->data->data());
+  encoded_image._length = frame->data->len();
+  encoded_image._size = frame->data->len();
   encoded_image._completeFrame = true;
 
   callback_->Encoded(encoded_image, NULL, NULL);
@@ -202,9 +224,34 @@ int32_t WebrtcDaalaVideoEncoder::SetRates(uint32_t newBitRate,
 
 
 // Decoder.
+static unsigned char kDummyPacket1[] = {
+  0x80, 0x64, 0x61, 0x61, 0x6c, 0x61, 0x00, 0x00,
+  0x00, 0x60, 0x01, 0x00, 0x00, 0x20, 0x01, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x03, 0x00,
+  0x00, 0x01, 0x01, 0x01, 0x01
+};
+
+static unsigned char kDummyPacket2[] = {
+  0x81, 0x64, 0x61, 0x61, 0x6c, 0x61, 0x2f, 0x00,
+  0x00, 0x00, 0x58, 0x69, 0x70, 0x68, 0x27, 0x73,
+  0x20, 0x65, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d,
+  0x65, 0x6e, 0x74, 0x61, 0x6c, 0x20, 0x65, 0x6e,
+  0x63, 0x6f, 0x64, 0x65, 0x72, 0x20, 0x6c, 0x69,
+  0x62, 0x72, 0x61, 0x72, 0x79, 0x20, 0x53, 0x65,
+  0x70, 0x20, 0x33, 0x30, 0x20, 0x32, 0x30, 0x31,
+  0x33, 0x00, 0x00, 0x00, 0x00
+};
+
+static unsigned char kDummyPacket3[] = {
+  0x82, 0x64, 0x61, 0x61, 0x6c, 0x61
+};
+
 WebrtcDaalaVideoDecoder::WebrtcDaalaVideoDecoder()
     : callback_(nullptr),
-      mutex_("WebrtcDaalaVideoDecoder") {
+      mutex_("WebrtcDaalaVideoDecoder"),
+      dec_ctx_(nullptr) {
   nsIThread* thread;
 
   nsresult rv = NS_NewNamedThread("encoder-thread", &thread);
@@ -216,6 +263,49 @@ WebrtcDaalaVideoDecoder::WebrtcDaalaVideoDecoder()
 int32_t WebrtcDaalaVideoDecoder::InitDecode(
     const webrtc::VideoCodec* codecSettings,
     int32_t numberOfCores) {
+
+  daala_info info;
+  daala_info_init(&info);
+  daala_comment dc;
+  daala_comment_init(&dc);
+  daala_setup_info* ds = nullptr;
+  ogg_packet op;
+  int rv;
+
+  memset(&op, 0, sizeof(op));
+  op.packet = kDummyPacket1;
+  op.bytes = sizeof(kDummyPacket1);
+  op.b_o_s = 1;
+  rv = daala_decode_header_in(&info, &dc, &ds, &op);
+  if (rv <= 0) {
+    MOZ_MTLOG(ML_ERROR, "Failure reading header packet 1");
+    return WEBRTC_VIDEO_CODEC_ERROR;
+  }
+
+  memset(&op, 0, sizeof(op));
+  op.packet = kDummyPacket2;
+  op.bytes = sizeof(kDummyPacket2);
+  rv = daala_decode_header_in(&info, &dc, &ds, &op);
+  if (rv <= 0) {
+    MOZ_MTLOG(ML_ERROR, "Failure reading header packet 2");
+    return WEBRTC_VIDEO_CODEC_ERROR;
+  }
+
+  memset(&op, 0, sizeof(op));
+  op.packet = kDummyPacket3;
+  op.bytes = sizeof(kDummyPacket3);
+  rv = daala_decode_header_in(&info, &dc, &ds, &op);
+  if (rv <= 0) {
+    MOZ_MTLOG(ML_ERROR, "Failure reading header packet 3");
+    return WEBRTC_VIDEO_CODEC_ERROR;
+  }
+
+  dec_ctx_ = daala_decode_alloc(&info, ds);
+  if (!dec_ctx_) {
+    MOZ_MTLOG(ML_ERROR, "Failure creating Daala ctx");
+    return WEBRTC_VIDEO_CODEC_ERROR;
+  }
+
   return WEBRTC_VIDEO_CODEC_OK;
 }
 
@@ -226,6 +316,7 @@ int32_t WebrtcDaalaVideoDecoder::Decode(
     const webrtc::CodecSpecificInfo*
     codecSpecificInfo,
     int64_t renderTimeMs) {
+#if 0
   if (sizeof(EncodedFrame) != inputImage._length)
     return WEBRTC_VIDEO_CODEC_ERROR;
 
@@ -251,6 +342,7 @@ int32_t WebrtcDaalaVideoDecoder::Decode(
                 WrapRunnable(nsRefPtr<WebrtcDaalaVideoDecoder>(this),
                              &WebrtcDaalaVideoDecoder::RunCallback),
                 NS_DISPATCH_NORMAL);
+#endif
 
   return WEBRTC_VIDEO_CODEC_OK;
 }
