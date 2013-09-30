@@ -11,9 +11,11 @@
 
 // Video Engine Includes
 #include "webrtc/common_types.h"
+#include "modules/video_coding/codecs/interface/video_codec_interface.h"
 #include "webrtc/video_engine/include/vie_base.h"
 #include "webrtc/video_engine/include/vie_capture.h"
 #include "webrtc/video_engine/include/vie_codec.h"
+#include "video_engine/include/vie_external_codec.h"
 #include "webrtc/video_engine/include/vie_render.h"
 #include "webrtc/video_engine/include/vie_network.h"
 #include "webrtc/video_engine/include/vie_file.h"
@@ -34,6 +36,16 @@
 namespace mozilla {
 
 class WebrtcAudioConduit;
+
+// Marker interfaces.
+class WebrtcVideoEncoder : public VideoEncoder, public webrtc::VideoEncoder {
+};
+
+class WebrtcVideoDecoder : public VideoDecoder, public webrtc::VideoDecoder {
+};
+
+
+
 
 /**
  * Concrete class for Video session. Hooks up
@@ -129,6 +141,10 @@ public:
                                                 VideoType video_type,
                                                 uint64_t capture_time);
 
+  virtual MediaConduitErrorCode SetExternalSendCodec(int pltype,
+						     VideoEncoder* encoder);
+  virtual MediaConduitErrorCode SetExternalRecvCodec(int pltype,
+						     VideoDecoder* decoder);
 
 
   /**
@@ -163,6 +179,7 @@ public:
                       mPtrViENetwork(nullptr),
                       mPtrViERender(nullptr),
                       mPtrExtCapture(nullptr),
+                      mPtrExtCodec(nullptr),
                       mPtrRTP(nullptr),
                       mEngineTransmitting(false),
                       mEngineReceiving(false),
@@ -218,6 +235,7 @@ private:
   webrtc::ViENetwork* mPtrViENetwork;
   webrtc::ViERender* mPtrViERender;
   webrtc::ViEExternalCapture*  mPtrExtCapture;
+  webrtc::ViEExternalCodec*  mPtrExtCodec;
   webrtc::ViERTP_RTCP* mPtrRTP;
 
   // Engine state we are concerned with.

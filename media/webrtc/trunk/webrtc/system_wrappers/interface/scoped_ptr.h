@@ -188,7 +188,7 @@ void swap(scoped_array<T>& a, scoped_array<T>& b) {
 // scoped_ptr_malloc<> is similar to scoped_ptr<>, but it accepts a
 // second template argument, the function used to free the object.
 
-template<typename T, void (*FF)(void*) = free> class scoped_ptr_malloc {
+template<typename T, void (*FFF)(void*) = free> class scoped_ptr_malloc {
  private:
 
   T* ptr;
@@ -203,12 +203,12 @@ template<typename T, void (*FF)(void*) = free> class scoped_ptr_malloc {
   explicit scoped_ptr_malloc(T* p = 0): ptr(p) {}
 
   ~scoped_ptr_malloc() {
-    FF(static_cast<void*>(ptr));
+    FFF(static_cast<void*>(ptr));
   }
 
   void reset(T* p = 0) {
     if (ptr != p) {
-      FF(static_cast<void*>(ptr));
+      FFF(static_cast<void*>(ptr));
       ptr = p;
     }
   }
@@ -241,15 +241,15 @@ template<typename T, void (*FF)(void*) = free> class scoped_ptr_malloc {
 
   T** accept() {
     if (ptr) {
-      FF(static_cast<void*>(ptr));
+      FFF(static_cast<void*>(ptr));
       ptr = 0;
     }
     return &ptr;
   }
 };
 
-template<typename T, void (*FF)(void*)> inline
-void swap(scoped_ptr_malloc<T,FF>& a, scoped_ptr_malloc<T,FF>& b) {
+template<typename T, void (*FFF)(void*)> inline
+void swap(scoped_ptr_malloc<T,FFF>& a, scoped_ptr_malloc<T,FFF>& b) {
   a.swap(b);
 }
 

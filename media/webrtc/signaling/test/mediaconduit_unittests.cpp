@@ -14,6 +14,7 @@ using namespace std;
 #include <MediaConduitInterface.h>
 #include "nsIEventTarget.h"
 #include "FakeMediaStreamsImpl.h"
+#include "FakeVideoCodec.h"
 
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
@@ -470,21 +471,16 @@ private:
 
 namespace {
 
-class TransportConduitTest : public ::testing::Test
+class AudioConduitTest : public ::testing::Test
 {
  public:
-  TransportConduitTest()
+  AudioConduitTest()
   {
     //input and output file names
     iAudiofilename = "input.wav";
     oAudiofilename = "recorded.wav";
   }
 
-  ~TransportConduitTest()
-  {
-  }
-
-  //1. Dump audio samples to dummy external transport
   void TestDummyAudioAndTransport()
   {
     //get pointer to AudioSessionConduit
@@ -542,10 +538,24 @@ class TransportConduitTest : public ::testing::Test
     cerr << "   ******************************************************** " << endl;
   }
 
-  //2. Dump audio samples to dummy external transport
-  void TestDummyVideoAndTransport()
-  {
-    int err = 0;
+ private:
+  mozilla::RefPtr<mozilla::AudioSessionConduit> mAudioSession;
+  mozilla::RefPtr<mozilla::AudioSessionConduit> mAudioSession2;
+  mozilla::RefPtr<mozilla::TransportInterface> mAudioTransport;
+  AudioSendAndReceive audioTester;
+
+  std::string fileToPlay;
+  std::string fileToRecord;
+  std::string iAudiofilename;
+  std::string oAudiofilename;
+
+};
+
+class VideoConduitTest : public ::testing::Test{
+ public:
+  void SetUp() {
+    memset(&vidStatsGlobal, 0, sizeof(vidStatsGlobal));
+
     //get pointer to VideoSessionConduit
     mVideoSession = mozilla::VideoSessionConduit::Create();
     if( !mVideoSession )
@@ -555,7 +565,11 @@ class TransportConduitTest : public ::testing::Test
     mVideoSession2 = mozilla::VideoSessionConduit::Create();
     if( !mVideoSession2 )
       ASSERT_NE(mVideoSession2,(void*)NULL);
+  }
 
+  void TestDummyVideoAndTransport(bool send_vp8 = true)
+  {
+    int err = 0;
     mVideoRenderer = new DummyVideoTarget();
     ASSERT_NE(mVideoRenderer, (void*)NULL);
 
@@ -581,12 +595,15 @@ class TransportConduitTest : public ::testing::Test
     rcvCodecList.push_back(&cinst1);
     rcvCodecList.push_back(&cinst2);
 
+    err = mVideoSession->ConfigureSendMediaCodec(
+	send_vp8 ? &cinst1 : &cinst2);
     err = mVideoSession->ConfigureSendMediaCodec(&cinst1);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
     err = mVideoSession->ConfigureRecvMediaCodecs(rcvCodecList);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
-    err = mVideoSession2->ConfigureSendMediaCodec(&cinst1);
+    err = mVideoSession2->ConfigureSendMediaCodec(
+	send_vp8 ? &cinst1 : &cinst2);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
     err = mVideoSession2->ConfigureRecvMediaCodecs(rcvCodecList);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
@@ -613,17 +630,14 @@ class TransportConduitTest : public ::testing::Test
 
     cerr << "   **************************************************" << endl;
 
-
+    ASSERT_EQ(vidStatsGlobal.numRawFramesInserted,
+              vidStatsGlobal.numFramesRenderedSuccessfully);
+    ASSERT_EQ(0, vidStatsGlobal.numFramesRenderedWrongly);
   }
 
  void TestVideoConduitCodecAPI()
   {
     int err = 0;
-    mozilla::RefPtr<mozilla::VideoSessionConduit> mVideoSession;
-    //get pointer to VideoSessionConduit
-    mVideoSession = mozilla::VideoSessionConduit::Create();
-    if( !mVideoSession )
-      ASSERT_NE(mVideoSession, (void*)NULL);
 
     //Test Configure Recv Codec APIS
     cerr << "   *************************************************" << endl;
@@ -706,43 +720,47 @@ class TransportConduitTest : public ::testing::Test
 
     err = mVideoSession->ConfigureSendMediaCodec(NULL);
     EXPECT_TRUE(err != mozilla::kMediaConduitNoError);
-
   }
 
-private:
-  //Audio Conduit Test Objects
-  mozilla::RefPtr<mozilla::AudioSessionConduit> mAudioSession;
-  mozilla::RefPtr<mozilla::AudioSessionConduit> mAudioSession2;
-  mozilla::RefPtr<mozilla::TransportInterface> mAudioTransport;
-  AudioSendAndReceive audioTester;
+  void SetFakeCodecs() {
+    mExternalEncoder = mozilla::FakeVideoCodec::CreateEncoder();
+    mExternalDecoder = mozilla::FakeVideoCodec::CreateDecoder();
 
+    mVideoSession->SetExternalSendCodec(124, mExternalEncoder);
+    mVideoSession2->SetExternalRecvCodec(124, mExternalDecoder);
+  }
+
+ private:
   //Video Conduit Test Objects
   mozilla::RefPtr<mozilla::VideoSessionConduit> mVideoSession;
   mozilla::RefPtr<mozilla::VideoSessionConduit> mVideoSession2;
   mozilla::RefPtr<mozilla::VideoRenderer> mVideoRenderer;
   mozilla::RefPtr<mozilla::TransportInterface> mVideoTransport;
   VideoSendAndReceive videoTester;
-
-  std::string fileToPlay;
-  std::string fileToRecord;
-  std::string iAudiofilename;
-  std::string oAudiofilename;
+  nsRefPtr<mozilla::VideoEncoder> mExternalEncoder;
+  nsRefPtr<mozilla::VideoDecoder> mExternalDecoder;
 };
 
 
 // Test 1: Test Dummy External Xport
-TEST_F(TransportConduitTest, TestDummyAudioWithTransport) {
+TEST_F(AudioConduitTest, TestDummyAudioWithTransport) {
   TestDummyAudioAndTransport();
 }
 
 // Test 2: Test Dummy External Xport
-TEST_F(TransportConduitTest, TestDummyVideoWithTransport) {
+TEST_F(VideoConduitTest, TestDummyVideoWithTransport) {
   TestDummyVideoAndTransport();
  }
 
-TEST_F(TransportConduitTest, TestVideoConduitCodecAPI) {
+TEST_F(VideoConduitTest, TestVideoConduitExternalCodec) {
+  SetFakeCodecs();
+  TestDummyVideoAndTransport(false);
+}
+
+TEST_F(VideoConduitTest, TestVideoConduitCodecAPI) {
   TestVideoConduitCodecAPI();
  }
+
 
 }  // end namespace
 
