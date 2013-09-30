@@ -66,6 +66,8 @@
         '../../../netwerk/srtp/src/include',
         '../../../netwerk/srtp/src/crypto/include',
         '../../../ipc/chromium/src',
+        '/Users/ekr/dev/daala/include/daala',
+        '/opt/local/include'
       ],
 
       #
@@ -88,7 +90,9 @@
         './src/media-conduit/VideoConduit.h',
         './src/media-conduit/VideoConduit.cpp',
         './src/media-conduit/WebrtcFakeVideoCodec.cpp',
+        './src/media-conduit/WebrtcDaalaVideoCodec.cpp',
         './src/media-conduit/FakeVideoCodec.cpp',
+        './src/media-conduit/DaalaVideoCodec.cpp',
         # Common
         './src/common/CommonTypes.h',
         './src/common/csf_common.h',

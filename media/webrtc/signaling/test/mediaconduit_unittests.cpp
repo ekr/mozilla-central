@@ -15,6 +15,7 @@ using namespace std;
 #include "nsIEventTarget.h"
 #include "FakeMediaStreamsImpl.h"
 #include "FakeVideoCodec.h"
+#include "DaalaVideoCodec.h"
 
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
@@ -597,7 +598,6 @@ class VideoConduitTest : public ::testing::Test{
 
     err = mVideoSession->ConfigureSendMediaCodec(
 	send_vp8 ? &cinst1 : &cinst2);
-    err = mVideoSession->ConfigureSendMediaCodec(&cinst1);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
     err = mVideoSession->ConfigureRecvMediaCodecs(rcvCodecList);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
@@ -730,6 +730,14 @@ class VideoConduitTest : public ::testing::Test{
     mVideoSession2->SetExternalRecvCodec(124, mExternalDecoder);
   }
 
+  void SetDaalaCodecs() {
+    mExternalEncoder = mozilla::DaalaVideoCodec::CreateEncoder();
+    mExternalDecoder = mozilla::DaalaVideoCodec::CreateDecoder();
+
+    mVideoSession->SetExternalSendCodec(124, mExternalEncoder);
+    mVideoSession2->SetExternalRecvCodec(124, mExternalDecoder);
+  }
+
  private:
   //Video Conduit Test Objects
   mozilla::RefPtr<mozilla::VideoSessionConduit> mVideoSession;
@@ -756,6 +764,12 @@ TEST_F(VideoConduitTest, TestVideoConduitExternalCodec) {
   SetFakeCodecs();
   TestDummyVideoAndTransport(false);
 }
+
+TEST_F(VideoConduitTest, TestVideoConduitDaalaCodec) {
+  SetDaalaCodecs();
+  TestDummyVideoAndTransport(false);
+}
+
 
 TEST_F(VideoConduitTest, TestVideoConduitCodecAPI) {
   TestVideoConduitCodecAPI();
