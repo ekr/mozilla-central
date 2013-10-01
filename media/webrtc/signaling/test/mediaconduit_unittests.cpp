@@ -60,14 +60,23 @@ class VideoSendAndReceive
 {
 public:
   VideoSendAndReceive():width(640),
-                        height(480)
+                        height(480),
+			rate(30)
   {
   }
 
   ~VideoSendAndReceive()
   {
   }
-
+ 
+  void SetDimensions(int w, int h)
+  {
+    width = w;
+    height = h;
+  }
+  void SetRate(int r) {
+    rate = r;
+  }
   void Init(mozilla::RefPtr<mozilla::VideoSessionConduit> aSession)
   {
         mSession = aSession;
@@ -88,7 +97,7 @@ public:
                                 height,
                                 mozilla::kVideoI420,
                                 0);
-      PR_Sleep(PR_MillisecondsToInterval(33));
+      PR_Sleep(PR_MillisecondsToInterval(1000/rate));
       vidStatsGlobal.numRawFramesInserted++;
       numFrames--;
     } while(numFrames >= 0);
@@ -98,6 +107,7 @@ public:
 private:
 mozilla::RefPtr<mozilla::VideoSessionConduit> mSession;
 int width, height;
+int rate;
 };
 
 
@@ -738,13 +748,15 @@ class VideoConduitTest : public ::testing::Test{
     mVideoSession2->SetExternalRecvCodec(124, mExternalDecoder);
   }
 
+ protected:
+  VideoSendAndReceive videoTester;
+
  private:
   //Video Conduit Test Objects
   mozilla::RefPtr<mozilla::VideoSessionConduit> mVideoSession;
   mozilla::RefPtr<mozilla::VideoSessionConduit> mVideoSession2;
   mozilla::RefPtr<mozilla::VideoRenderer> mVideoRenderer;
   mozilla::RefPtr<mozilla::TransportInterface> mVideoTransport;
-  VideoSendAndReceive videoTester;
   nsRefPtr<mozilla::VideoEncoder> mExternalEncoder;
   nsRefPtr<mozilla::VideoDecoder> mExternalDecoder;
 };
@@ -767,6 +779,7 @@ TEST_F(VideoConduitTest, TestVideoConduitExternalCodec) {
 
 TEST_F(VideoConduitTest, TestVideoConduitDaalaCodec) {
   SetDaalaCodecs();
+  videoTester.SetDimensions(176, 144);
   TestDummyVideoAndTransport(false);
 }
 

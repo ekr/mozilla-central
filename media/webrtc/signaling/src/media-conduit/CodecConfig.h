@@ -64,6 +64,8 @@ struct VideoCodecConfig
                                      mName(name),
                                      mRtcpFbTypes(rtcpFbTypes)
   {
+      if (mName == "H264_P0")
+	  mName = "I420";
   }
 
 
