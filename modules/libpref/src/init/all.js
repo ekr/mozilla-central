@@ -223,8 +223,8 @@ pref("media.apple.mp3.enabled", true);
 #endif
 #ifdef MOZ_WEBRTC
 pref("media.navigator.enabled", true);
-pref("media.navigator.video.default_width",640);
-pref("media.navigator.video.default_height",480);
+pref("media.navigator.video.default_width",176);
+pref("media.navigator.video.default_height",144);
 pref("media.navigator.video.default_fps",30);
 pref("media.navigator.video.default_minfps",10);
 pref("media.peerconnection.enabled", true);
