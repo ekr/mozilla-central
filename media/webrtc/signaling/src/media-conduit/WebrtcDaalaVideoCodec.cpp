@@ -66,7 +66,7 @@ int32_t WebrtcDaalaVideoEncoder::InitEncode(
   info.plane_info[1].ydec = 1;
   info.plane_info[2].xdec = 1;
   info.plane_info[2].ydec = 1;
-  info.keyframe_rate = 300;
+  info.keyframe_rate = 1;
 
   enc_ctx_ = daala_encode_create(&info);
   if (!enc_ctx_)
@@ -91,12 +91,15 @@ int32_t WebrtcDaalaVideoEncoder::InitEncode(
   return WEBRTC_VIDEO_CODEC_OK;
 }
 
-static void init_plane(const uint8_t *data, unsigned char dec,
+static void init_plane(const uint8_t *data,
+                       const od_img *img,
+                       unsigned char dec,
                        od_img_plane *plane) {
   plane->data = static_cast<unsigned char *>(const_cast<uint8_t *>
                                              (data));
   plane->xdec = plane->ydec = dec;
-  plane->xstride = plane->ystride = 0;
+  plane->xstride = 1;
+  plane->ystride = img->width >> dec;
 }
 
 int32_t WebrtcDaalaVideoEncoder::Encode(
@@ -114,9 +117,9 @@ int32_t WebrtcDaalaVideoEncoder::Encode(
   daala_img.nplanes = 3;
   daala_img.width = inputImage.width();
   daala_img.height = inputImage.height();
-  init_plane(y, 0, &daala_img.planes[0]);
-  init_plane(u, 1, &daala_img.planes[1]);
-  init_plane(v, 1, &daala_img.planes[2]);
+  init_plane(y, &daala_img, 0, &daala_img.planes[0]);
+  init_plane(u, &daala_img, 1, &daala_img.planes[1]);
+  init_plane(v, &daala_img, 1, &daala_img.planes[2]);
 
   int rv = daala_encode_img_in(enc_ctx_,
                                &daala_img,
@@ -151,7 +154,7 @@ int32_t WebrtcDaalaVideoEncoder::Encode(
       EncodedFrame& encoded = frames_.front();
       encoded.width_ = inputImage.width();
       encoded.height_ = inputImage.height();
-      encoded.timestamp_ = timestamp_;
+      encoded.timestamp_ = inputImage.timestamp();
       encoded.data = new DataBuffer(op.packet, op.bytes);
       // encoded.data = new DataBuffer(op.packet, 500);
       ++encoded_ct;
@@ -160,8 +163,6 @@ int32_t WebrtcDaalaVideoEncoder::Encode(
   PRIntervalTime t1 = PR_IntervalNow();
   MOZ_MTLOG(ML_DEBUG, "Daala Frame encoded; Encoding time = "
             << PR_IntervalToMilliseconds(t1 - t0) << "ms");
-
-  const uint8_t* buffer = y;
 
   if (encoded_ct) {
     RUN_ON_THREAD(thread_,
@@ -225,23 +226,23 @@ int32_t WebrtcDaalaVideoEncoder::SetRates(uint32_t newBitRate,
 
 // Decoder.
 static unsigned char kDummyPacket1[] = {
-  0x80, 0x64, 0x61, 0x61, 0x6c, 0x61, 0x00, 0x00,
-  0x00, 0x60, 0x01, 0x00, 0x00, 0x20, 0x01, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x03, 0x00,
-  0x00, 0x01, 0x01, 0x01, 0x01
+0x80, 0x64, 0x61, 0x61, 0x6c, 0x61, 0x00, 0x00,
+0x00, 0x80, 0x02, 0x00, 0x00, 0xe0, 0x01, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x03, 0x00,
+0x00, 0x01, 0x01, 0x01, 0x01
 };
 
 static unsigned char kDummyPacket2[] = {
-  0x81, 0x64, 0x61, 0x61, 0x6c, 0x61, 0x2f, 0x00,
-  0x00, 0x00, 0x58, 0x69, 0x70, 0x68, 0x27, 0x73,
-  0x20, 0x65, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d,
-  0x65, 0x6e, 0x74, 0x61, 0x6c, 0x20, 0x65, 0x6e,
-  0x63, 0x6f, 0x64, 0x65, 0x72, 0x20, 0x6c, 0x69,
-  0x62, 0x72, 0x61, 0x72, 0x79, 0x20, 0x53, 0x65,
-  0x70, 0x20, 0x33, 0x30, 0x20, 0x32, 0x30, 0x31,
-  0x33, 0x00, 0x00, 0x00, 0x00
+0x81, 0x64, 0x61, 0x61, 0x6c, 0x61, 0x2f, 0x00,
+0x00, 0x00, 0x58, 0x69, 0x70, 0x68, 0x27, 0x73,
+0x20, 0x65, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d,
+0x65, 0x6e, 0x74, 0x61, 0x6c, 0x20, 0x65, 0x6e,
+0x63, 0x6f, 0x64, 0x65, 0x72, 0x20, 0x6c, 0x69,
+0x62, 0x72, 0x61, 0x72, 0x79, 0x20, 0x53, 0x65,
+0x70, 0x20, 0x33, 0x30, 0x20, 0x32, 0x30, 0x31,
+0x33, 0x00, 0x00, 0x00, 0x00
 };
 
 static unsigned char kDummyPacket3[] = {
@@ -316,24 +317,65 @@ int32_t WebrtcDaalaVideoDecoder::Decode(
     const webrtc::CodecSpecificInfo*
     codecSpecificInfo,
     int64_t renderTimeMs) {
-#if 0
-  if (sizeof(EncodedFrame) != inputImage._length)
-    return WEBRTC_VIDEO_CODEC_ERROR;
+  MOZ_MTLOG(ML_DEBUG, "Daala::Decode");
+  ogg_packet op;
+  memset(&op, 0, sizeof(op));
+  op.packet = inputImage._buffer;
+  op.bytes = inputImage._length;
 
-  EncodedFrame* frame = reinterpret_cast<EncodedFrame*>(
-      inputImage._buffer);
-  size_t len = frame->width_ * frame->height_;
-  ScopedDeleteArray<uint8_t> data(new uint8_t[len]);
-  memset(data.get(), frame->value_, len);
+  od_img img;
+  memset(&img, 0, sizeof(img));
+  int rv = daala_decode_packet_in(dec_ctx_, &img, &op);
+  if (rv) {
+    MOZ_MTLOG(ML_ERROR, "Failure reading data");
+    return WEBRTC_VIDEO_CODEC_ERROR;
+  }
+
+  MOZ_ASSERT(!(img.width & 1));
+  MOZ_ASSERT(!(img.height & 1));
+
+  // TODO(ekr@rtfm.com): Assert that xstride == 1
+  size_t y_len = img.height * img.width;
+  ScopedDeleteArray<uint8_t> y(new uint8_t[y_len]);
+  size_t u_len = (img.height * img.width) / 4;
+  ScopedDeleteArray<uint8_t> u(new uint8_t[u_len]);
+  size_t v_len = (img.height * img.width) / 4;
+  ScopedDeleteArray<uint8_t> v(new uint8_t[v_len]);
+
+  // Now copy the Daala packet into len.
+  // First Y
+  size_t to_offset = 0;
+  size_t from_offset = 0;
+  for (int32_t row = 0; row < img.height; ++row) {
+
+    memcpy(y + to_offset, img.planes[0].data + from_offset,
+           img.width);
+
+    to_offset += img.width;
+    from_offset += img.planes[0].ystride;
+  }
+
+  // Now U and V
+  // TODO(ekr@rtfm.com): assert that the strides are equal.
+  to_offset = from_offset = 0;
+  for (int32_t row = 0; row < img.height/2; ++row) {
+    memcpy(u + to_offset, img.planes[1].data + from_offset,
+           img.width/2);
+    memcpy(v + to_offset, img.planes[2].data + from_offset,
+           img.width/2);
+
+    to_offset += img.width/2;
+    from_offset += img.planes[2].ystride;
+  }
 
   MutexAutoLock lock(mutex_);
-  if (decoded_image_.CreateFrame(len, data,
-                                 len/4, data,
-                                 len/4, data,
-                                 frame->width_, frame->height_,
-                                 frame->width_,
-                                 frame->width_/2,
-                                 frame->width_/2))
+  if (decoded_image_.CreateFrame(y_len, y,
+                                 u_len, u,
+                                 v_len, v,
+                                 img.width, img.height,
+                                 img.width,
+                                 img.width/2,
+                                 img.width/2))
     return WEBRTC_VIDEO_CODEC_ERROR;
   decoded_image_.set_timestamp(inputImage._timeStamp);
 
@@ -342,7 +384,6 @@ int32_t WebrtcDaalaVideoDecoder::Decode(
                 WrapRunnable(nsRefPtr<WebrtcDaalaVideoDecoder>(this),
                              &WebrtcDaalaVideoDecoder::RunCallback),
                 NS_DISPATCH_NORMAL);
-#endif
 
   return WEBRTC_VIDEO_CODEC_OK;
 }
