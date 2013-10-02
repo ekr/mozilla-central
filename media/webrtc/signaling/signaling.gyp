@@ -66,7 +66,7 @@
         '../../../netwerk/srtp/src/include',
         '../../../netwerk/srtp/src/crypto/include',
         '../../../ipc/chromium/src',
-        '/Users/ekr/dev/daala/include/daala',
+        '../../../../daala/include/daala',
         '/opt/local/include'
       ],
 

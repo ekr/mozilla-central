@@ -4418,7 +4418,8 @@ cairo-cocoa)
     MOZ_WIDGET_TOOLKIT=cocoa
     AC_DEFINE(MOZ_WIDGET_COCOA)
     LDFLAGS="$LDFLAGS -framework Cocoa -lobjc"
-    TK_LIBS='-framework CoreLocation -framework QuartzCore -framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook -framework OpenGL /Users/ekr/dev/daala/unix/$(LIB_PREFIX)daaladec.$(LIB_SUFFIX) /Users/ekr/dev/daala/unix/$(LIB_PREFIX)daalaenc.$(LIB_SUFFIX) /Users/ekr/dev/daala/unix/$(LIB_PREFIX)daalabase.$(LIB_SUFFIX)'
+    TK_LIBS="-framework CoreLocation -framework QuartzCore -framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook -framework OpenGL ${_topsrcdir}/../daala/unix/\$(LIB_PREFIX)daaladec.\$(LIB_SUFFIX) ${_topsrcdir}/../daala/unix/\$(LIB_PREFIX)daalaenc.\$(LIB_SUFFIX) ${_topsrcdir}/../daala/unix/\$(LIB_PREFIX)daalabase.\$(LIB_SUFFIX)"
+
 
     TK_CFLAGS="-DNO_X11"
     CFLAGS="$CFLAGS $TK_CFLAGS"
@@ -4460,7 +4461,7 @@ cairo-gonk)
     MOZ_WIDGET_TOOLKIT=gonk
     TK_CFLAGS='$(MOZ_CAIRO_CFLAGS) $(MOZ_PIXMAN_CFLAGS)'
     TK_LIBS='$(MOZ_CAIRO_LIBS) $(MOZ_PIXMAN_LIBS)'
-    MOZ_WEBGL=1
+        MOZ_WEBGL=1
     MOZ_PDF_PRINTING=1
     MOZ_TOUCH=1
     ;;
