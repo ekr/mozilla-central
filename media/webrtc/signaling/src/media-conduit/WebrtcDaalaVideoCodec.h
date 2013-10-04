@@ -103,7 +103,7 @@ class WebrtcDaalaVideoEncoder : public WebrtcVideoEncoder {
   void EmitFrame(EncodedFrame *frame);
 
   nsCOMPtr<nsIThread> thread_;
-  std::queue<EncodedFrame> frames_;
+  std::queue<EncodedFrame*> frames_;
   uint32_t max_payload_size_;
   uint32_t timestamp_;
   webrtc::EncodedImageCallback* callback_;

@@ -149,13 +149,12 @@ int32_t WebrtcDaalaVideoEncoder::Encode(
       // Warning: constructing the encoded and pushing it on made things sad.
       // The value of data was bogus.
       // TODO(ekr@rtfm.com): investigate
-      EncodedFrame dummy;
-      frames_.push(dummy);
-      EncodedFrame& encoded = frames_.front();
-      encoded.width_ = inputImage.width();
-      encoded.height_ = inputImage.height();
-      encoded.timestamp_ = inputImage.timestamp();
-      encoded.data = new DataBuffer(op.packet, op.bytes);
+      EncodedFrame *encoded = new EncodedFrame();
+      encoded->width_ = inputImage.width();
+      encoded->height_ = inputImage.height();
+      encoded->timestamp_ = inputImage.timestamp();
+      encoded->data = new DataBuffer(op.packet, op.bytes);
+      frames_.push(encoded);
       // encoded.data = new DataBuffer(op.packet, 500);
       ++encoded_ct;
     }
@@ -180,9 +179,10 @@ void WebrtcDaalaVideoEncoder::EmitFrames() {
   MutexAutoLock lock(mutex_);
 
   while(!frames_.empty()) {
-    EncodedFrame *frame = &frames_.front();
+    EncodedFrame *frame = frames_.front();
     EmitFrame(frame);
     frames_.pop();
+    delete frame;
   }
 }
 
