@@ -142,7 +142,8 @@ void NrIceResolverFake::resolve_cb(NR_SOCKET s, int how, void *cb_arg) {
   if (addr) {
     nr_transport_addr transport_addr;
 
-    int r = nr_praddr_to_transport_addr(addr, &transport_addr, 0);
+    int r = nr_praddr_to_transport_addr(addr, &transport_addr,
+                                        IPPROTO_UDP, 0);
     MOZ_ASSERT(!r);
     if (r)
       goto abort;

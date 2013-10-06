@@ -201,7 +201,6 @@ static int nr_transport_addr_to_praddr(nr_transport_addr *addr,
 
     switch(addr->protocol){
       case IPPROTO_TCP:
-        ABORT(R_INTERNAL); /* Can't happen for now */
         break;
       case IPPROTO_UDP:
         break;
@@ -241,7 +240,7 @@ static int nr_transport_addr_to_praddr(nr_transport_addr *addr,
   }
 
 int nr_netaddr_to_transport_addr(const net::NetAddr *netaddr,
-  nr_transport_addr *addr)
+                                 nr_transport_addr *addr, int protocol)
   {
     int _status;
     int r;
@@ -265,7 +264,8 @@ int nr_netaddr_to_transport_addr(const net::NetAddr *netaddr,
   }
 
 int nr_praddr_to_transport_addr(const PRNetAddr *praddr,
-  nr_transport_addr *addr, int keep)
+                                nr_transport_addr *addr, int protocol,
+                                int keep)
   {
     int _status;
     int r;
@@ -278,7 +278,7 @@ int nr_praddr_to_transport_addr(const PRNetAddr *praddr,
         ip4.sin_port = praddr->inet.port;
         if ((r = nr_sockaddr_to_transport_addr((sockaddr *)&ip4,
                                                sizeof(ip4),
-                                               IPPROTO_UDP, keep,
+                                               protocol, keep,
                                                addr)))
           ABORT(r);
         break;
@@ -318,9 +318,21 @@ int NrSocket::create(nr_transport_addr *addr) {
   if((r=nr_transport_addr_to_praddr(addr, &naddr)))
     ABORT(r);
 
-  if (!(fd_ = PR_NewUDPSocket())) {
-    r_log(LOG_GENERIC,LOG_CRIT,"Couldn't create socket");
-    ABORT(R_INTERNAL);
+  switch (addr->protocol) {
+    case IPPROTO_UDP:
+      if (!(fd_ = PR_NewUDPSocket())) {
+        r_log(LOG_GENERIC,LOG_CRIT,"Couldn't create socket");
+        ABORT(R_INTERNAL);
+      }
+      break;
+    case IPPROTO_TCP:
+      if (!(fd_ = PR_NewTCPSocket())) {
+        r_log(LOG_GENERIC,LOG_CRIT,"Couldn't create socket");
+        ABORT(R_INTERNAL);
+      }
+      break;
+    default:
+      ABORT(R_INTERNAL);
   }
 
   status = PR_Bind(fd_, &naddr);
@@ -342,7 +354,7 @@ int NrSocket::create(nr_transport_addr *addr) {
       ABORT(R_INTERNAL);
     }
 
-    if((r=nr_praddr_to_transport_addr(&naddr,&my_addr_,1)))
+    if((r=nr_praddr_to_transport_addr(&naddr,&my_addr_,addr->protocol,1)))
       ABORT(r);
   }
 
@@ -404,8 +416,8 @@ abort:
 }
 
 int NrSocket::recvfrom(void * buf, size_t maxlen,
-                                       size_t *len, int flags,
-                                       nr_transport_addr *from) {
+                       size_t *len, int flags,
+                       nr_transport_addr *from) {
   ASSERT_ON_THREAD(ststhread_);
   int r,_status;
   PRNetAddr nfrom;
@@ -418,7 +430,7 @@ int NrSocket::recvfrom(void * buf, size_t maxlen,
   }
   *len=status;
 
-  if((r=nr_praddr_to_transport_addr(&nfrom,from,0)))
+  if((r=nr_praddr_to_transport_addr(&nfrom,from,my_addr_.protocol,0)))
     ABORT(r);
 
   //r_log(LOG_GENERIC,LOG_DEBUG,"Read %d bytes from %s",*len,addr->as_string);
@@ -438,6 +450,78 @@ void NrSocket::close() {
   ASSERT_ON_THREAD(ststhread_);
   mCondition = NS_BASE_STREAM_CLOSED;
 }
+
+int NrSocket::connect(nr_transport_addr *addr) {
+  ASSERT_ON_THREAD(ststhread_);
+  int r,_status;
+  PRNetAddr naddr;
+  int32_t status;
+
+  if ((r=nr_transport_addr_to_praddr(addr, &naddr)))
+    ABORT(r);
+
+  if ((r=nr_transport_addr_copy(&remote_addr_, addr)))
+    ABORT(r);
+
+  if(fd_==nullptr)
+    ABORT(R_EOD);
+
+  status = PR_Connect(fd_, &naddr, PR_INTERVAL_NO_WAIT);
+
+  if (status != PR_SUCCESS) {
+    if (PR_GetError() == PR_IN_PROGRESS_ERROR)
+      ABORT(R_WOULDBLOCK);
+
+    ABORT(R_IO_ERROR);
+  }
+
+  connected_ = true;
+
+  _status=0;
+abort:
+  return(_status);
+}
+
+
+int NrSocket::write(const void *msg, size_t len, size_t *written) {
+  ASSERT_ON_THREAD(ststhread_);
+  int r,_status;
+  int32_t status;
+
+  status = PR_Write(fd_, msg, len);
+  if (status < 0) {
+    if (PR_GetError() == PR_WOULD_BLOCK_ERROR)
+      ABORT(R_WOULDBLOCK);
+    ABORT(R_IO_ERROR);
+  }
+
+  *written = status;
+
+  _status=0;
+abort:
+  return _status;
+}
+
+int NrSocket::read(void* buf, size_t maxlen, size_t *len) {
+  ASSERT_ON_THREAD(ststhread_);
+  int r,_status;
+  int32_t status;
+
+  status = PR_Read(fd_, buf, maxlen);
+  if (status < 0) {
+    if (PR_GetError() == PR_WOULD_BLOCK_ERROR)
+      ABORT(R_WOULDBLOCK);
+    ABORT(R_IO_ERROR);
+  }
+  if (status == 0)
+    ABORT(R_EOD);
+
+  *len = (size_t)status;  // Guaranteed to be > 0
+  _status = 0;
+abort:
+  return(_status);
+}
+
 }  // close namespace
 
 
@@ -452,6 +536,9 @@ static int nr_socket_local_recvfrom(void *obj,void * restrict buf,
 static int nr_socket_local_getfd(void *obj, NR_SOCKET *fd);
 static int nr_socket_local_getaddr(void *obj, nr_transport_addr *addrp);
 static int nr_socket_local_close(void *obj);
+static int nr_socket_local_connect(void *sock, nr_transport_addr *addr);
+static int nr_socket_local_write(void *obj,const void *msg, size_t len, size_t *written);
+static int nr_socket_local_read(void *obj,void * restrict buf, size_t maxlen, size_t *len);
 
 static nr_socket_vtbl nr_socket_local_vtbl={
   nr_socket_local_destroy,
@@ -459,7 +546,10 @@ static nr_socket_vtbl nr_socket_local_vtbl={
   nr_socket_local_recvfrom,
   nr_socket_local_getfd,
   nr_socket_local_getaddr,
-  nr_socket_local_close
+  nr_socket_local_close,
+  nr_socket_local_connect,
+  nr_socket_local_write,
+  nr_socket_local_read
 };
 
 
@@ -537,6 +627,24 @@ static int nr_socket_local_close(void *obj) {
   sock->close();
 
   return 0;
+}
+
+static int nr_socket_local_write(void *obj, const void *msg, size_t len, size_t *written) {
+  NrSocket *sock = static_cast<NrSocket *>(obj);
+
+  return sock->write(msg, len, written);
+}
+
+static int nr_socket_local_read(void *obj, void * restrict buf, size_t maxlen, size_t *len) {
+  NrSocket *sock = static_cast<NrSocket *>(obj);
+
+  return sock->read(buf, maxlen, len);
+}
+
+static int nr_socket_local_connect(void *obj, nr_transport_addr *addr) {
+  NrSocket *sock = static_cast<NrSocket *>(obj);
+
+  return sock->connect(addr);
 }
 
 // Implement async api

@@ -69,7 +69,8 @@ static nr_socket_vtbl nr_socket_turn_vtbl={
   nr_socket_turn_recvfrom,
   nr_socket_turn_getfd,
   nr_socket_turn_getaddr,
-  nr_socket_turn_close
+  nr_socket_turn_close,
+  
 };
 
 int nr_socket_turn_create(nr_socket *sock, nr_socket **sockp)

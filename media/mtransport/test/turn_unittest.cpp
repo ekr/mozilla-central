@@ -96,25 +96,29 @@ class TurnClient : public ::testing::Test {
         net_socket_(nullptr),
         turn_ctx_(nullptr),
         allocated_(false),
-        received_(0) {}
+        received_(0),
+        protocol_(IPPROTO_UDP) {}
 
   ~TurnClient() {
+  }
+
+  void SetTcp() {
+    protocol_ = IPPROTO_TCP;
   }
 
   void Init_s() {
     int r;
 
     nr_transport_addr addr;
-    r = nr_ip4_port_to_transport_addr(0, 0, IPPROTO_UDP, &addr);
+    r = nr_ip4_port_to_transport_addr(0, 0, protocol_, &addr);
     ASSERT_EQ(0, r);
 
     r = nr_socket_local_create(&addr, &net_socket_);
     ASSERT_EQ(0, r);
 
     r = nr_ip4_str_port_to_transport_addr(turn_server_.c_str(), 3478,
-      IPPROTO_UDP, &addr);
+      protocol_, &addr);
     ASSERT_EQ(0, r);
-
 
     std::vector<unsigned char> password_vec(
         g_turn_password.begin(), g_turn_password.end());
@@ -129,8 +133,11 @@ class TurnClient : public ::testing::Test {
     r = nr_socket_getfd(net_socket_, &net_fd_);
     ASSERT_EQ(0, r);
 
-    NR_ASYNC_WAIT(net_fd_, NR_ASYNC_WAIT_READ, socket_readable_cb,
-                  (void *)this);
+    if (protocol_ == IPPROTO_UDP) {
+      // TODO(ekr@rtfm.com): Wait, TCP...?
+      NR_ASYNC_WAIT(net_fd_, NR_ASYNC_WAIT_READ, socket_readable_cb,
+                    (void *)this);
+    }
   }
 
   void TearDown_s() {
@@ -299,10 +306,16 @@ class TurnClient : public ::testing::Test {
   std::string relay_addr_;
   bool allocated_;
   int received_;
+  int protocol_;
 };
 
 
 TEST_F(TurnClient, Allocate) {
+  Allocate();
+}
+
+TEST_F(TurnClient, AllocateTcp) {
+  SetTcp();
   Allocate();
 }
 

@@ -67,8 +67,9 @@ namespace net {
 
 class NrSocket : public nsASocketHandler {
 public:
-  NrSocket() : fd_(nullptr) {
+  NrSocket() : fd_(nullptr), connected_(false) {
     memset(&my_addr_, 0, sizeof(my_addr_));
+    memset(&remote_addr_, 0, sizeof(remote_addr_));
     memset(cbs_, 0, sizeof(cbs_));
     memset(cb_args_, 0, sizeof(cb_args_));
   }
@@ -101,6 +102,9 @@ public:
                nr_transport_addr *from);
   int getaddr(nr_transport_addr *addrp);
   void close();
+  int connect(nr_transport_addr *addr);
+  int write(const void *msg, size_t len, size_t *written);
+  int read(void* buf, size_t maxlen, size_t *len);
 
 private:
   DISALLOW_COPY_ASSIGN(NrSocket);
@@ -109,14 +113,18 @@ private:
 
   PRFileDesc *fd_;
   nr_transport_addr my_addr_;
+  nr_transport_addr remote_addr_;
+  bool connected_;
   NR_async_cb cbs_[NR_ASYNC_WAIT_WRITE + 1];
   void *cb_args_[NR_ASYNC_WAIT_WRITE + 1];
   nsCOMPtr<nsIEventTarget> ststhread_;
 };
 
 int nr_netaddr_to_transport_addr(const net::NetAddr *netaddr,
-                                 nr_transport_addr *addr);
+                                 nr_transport_addr *addr,
+                                 int protocol);
 int nr_praddr_to_transport_addr(const PRNetAddr *praddr,
-                                nr_transport_addr *addr, int keep);
+                                nr_transport_addr *addr,
+                                int protocol, int keep);
 }  // close namespace
 #endif

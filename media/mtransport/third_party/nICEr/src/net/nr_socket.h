@@ -60,6 +60,9 @@ typedef struct nr_socket_vtbl_ {
   int (*getfd)(void *obj, NR_SOCKET *fd);
   int (*getaddr)(void *obj, nr_transport_addr *addrp);
   int (*close)(void *obj);
+  int (*connect)(void *obj, nr_transport_addr *addr);
+  int (*swrite)(void *obj,const void *msg, size_t len, size_t *written);
+  int (*sread)(void *obj,void * restrict buf, size_t maxlen, size_t *len);
 } nr_socket_vtbl;
 
 typedef struct nr_socket_ {
@@ -78,6 +81,9 @@ int nr_socket_recvfrom(nr_socket *sock,void * restrict buf, size_t maxlen,
 int nr_socket_getfd(nr_socket *sock, NR_SOCKET *fd);
 int nr_socket_getaddr(nr_socket *sock, nr_transport_addr *addrp);
 int nr_socket_close(nr_socket *sock);
+int nr_socket_connect(nr_socket *sock, nr_transport_addr *addr);
+int nr_socket_write(nr_socket *sock,const void *msg, size_t len, size_t *written, int flags);
+int nr_socket_read(nr_socket *sock, void * restrict buf, size_t maxlen, size_t *len, int flags);
 
 #endif
 

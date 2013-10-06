@@ -71,6 +71,8 @@
                 "./src/net/nr_resolver.h",
                 "./src/net/nr_socket.c",
                 "./src/net/nr_socket.h",
+                "./src/net/nr_socket_buffered.c",
+                "./src/net/nr_socket_buffered.h",
                 #"./src/net/nr_socket_local.c",
                 "./src/net/nr_socket_local.h",
                 "./src/net/transport_addr.c",

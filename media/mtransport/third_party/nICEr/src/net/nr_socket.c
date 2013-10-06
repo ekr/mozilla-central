@@ -47,6 +47,12 @@ int nr_socket_create_int(void *obj, nr_socket_vtbl *vtbl, nr_socket **sockp)
     if(!(sock=RCALLOC(sizeof(nr_socket))))
       ABORT(R_NO_MEMORY);
 
+    /* Check for the last thing in the vtbl to check for versioning
+       issues */
+    assert(vtbl->sread);
+    if (!vtbl->sread)
+       ABORT(R_INTERNAL);
+
     sock->obj=obj;
     sock->vtbl=vtbl;
 
@@ -104,3 +110,19 @@ int nr_socket_close(nr_socket *sock)
     return sock->vtbl->close(sock->obj);
   }
 
+int nr_socket_connect(nr_socket *sock, nr_transport_addr *addr)
+  {
+    return sock->vtbl->connect(sock->obj, addr);
+  }
+
+int nr_socket_write(nr_socket *sock,const void *msg, size_t len, size_t *written, int flags)
+  {
+    return sock->vtbl->swrite(sock->obj, msg, len, written);
+  }
+
+
+int nr_socket_read(nr_socket *sock,void * restrict buf, size_t maxlen,
+  size_t *len, int flags)
+  {
+    return sock->vtbl->sread(sock->obj, buf, maxlen, len);
+  }

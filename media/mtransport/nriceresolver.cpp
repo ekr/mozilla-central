@@ -188,7 +188,8 @@ nsresult NrIceResolver::PendingResolution::OnLookupComplete(
     if (NS_SUCCEEDED(status)) {
       net::NetAddr na;
       if (NS_SUCCEEDED(record->GetNextAddr(port_, &na))) {
-        MOZ_ALWAYS_TRUE (nr_netaddr_to_transport_addr(&na, &ta) == 0);
+        MOZ_ALWAYS_TRUE (nr_netaddr_to_transport_addr(&na, &ta,
+                                                      IPPROTO_UDP) == 0);
         cb_addr = &ta;
       }
     }

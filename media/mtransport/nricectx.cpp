@@ -188,7 +188,8 @@ nsresult NrIceStunServer::ToNicerStunStruct(nr_ice_stun_server *server) const {
   memset(server, 0, sizeof(nr_ice_stun_server));
 
   if (has_addr_) {
-    r = nr_praddr_to_transport_addr(&addr_, &server->u.addr, 0);
+    r = nr_praddr_to_transport_addr(&addr_, &server->u.addr,
+                                    IPPROTO_UDP, 0);
     if (r) {
       return NS_ERROR_FAILURE;
     }

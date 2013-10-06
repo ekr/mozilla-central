@@ -45,11 +45,13 @@ static char *RCSSTRING __UNUSED__="$Id: turn_client_ctx.c,v 1.2 2008/04/28 18:21
 #include "nr_api.h"
 #include "r_time.h"
 #include "async_timer.h"
+#include "nr_socket_buffered.h"
 #include "stun.h"
 #include "turn_client_ctx.h"
 
-
 int NR_LOG_TURN = 0;
+
+#define TURN_MAX_PENDING_BYTES 32000
 
 #define TURN_RTO 100  /* Hardcoded RTO estimate */
 #define TURN_LIFETIME_REQUEST_SECONDS    3600  /* One hour */
@@ -67,6 +69,8 @@ static int nr_turn_stun_ctx_create(nr_turn_client_ctx *tctx, int type,
                                    nr_turn_stun_ctx **ctxp);
 static int nr_turn_stun_ctx_destroy(nr_turn_stun_ctx **ctxp);
 static void nr_turn_stun_ctx_cb(NR_SOCKET s, int how, void *arg);
+static int nr_turn_client_connect(nr_turn_client_ctx *ctx);
+static void nr_turn_client_connected_cb(NR_SOCKET s, int how, void *cb_arg);
 static int nr_turn_stun_set_auth_params(nr_turn_stun_ctx *ctx,
                                         char *realm, char *nonce);
 static void nr_turn_client_refresh_timer_cb(NR_SOCKET s, int how, void *arg);
@@ -82,6 +86,8 @@ static int nr_turn_permission_create(nr_turn_client_ctx *ctx,
 static int nr_turn_permission_find(nr_turn_client_ctx *ctx,
                                    nr_transport_addr *addr,
                                    nr_turn_permission **permp);
+static int nr_turn_client_write_tcp(nr_turn_client_ctx *ctx,
+                                    const UCHAR *buffer, int len);
 static int nr_turn_permission_destroy(nr_turn_permission **permp);
 static int nr_turn_client_ensure_perm(nr_turn_client_ctx *ctx,
                                       nr_transport_addr *addr);
@@ -317,7 +323,6 @@ int nr_turn_client_ctx_create(const char *label, nr_socket *sock,
 
   STAILQ_INIT(&ctx->stun_ctxs);
   STAILQ_INIT(&ctx->permissions);
-  ctx->state=NR_TURN_CLIENT_STATE_INITTED;
 
   if(!(ctx->label=r_strdup(label)))
     ABORT(R_NO_MEMORY);
@@ -331,6 +336,18 @@ int nr_turn_client_ctx_create(const char *label, nr_socket *sock,
     ABORT(r);
   if ((r=nr_transport_addr_copy(&ctx->turn_server_addr, addr)))
     ABORT(r);
+
+  if (addr->protocol == IPPROTO_UDP) {
+    ctx->state = NR_TURN_CLIENT_STATE_CONNECTED;
+  }
+  else {
+    ctx->state = NR_TURN_CLIENT_STATE_INITTED;
+
+    if (r=nr_turn_client_connect(ctx)) {
+      if (r != R_WOULDBLOCK)
+        ABORT(r);
+    }
+  }
 
   *ctxp=ctx;
 
@@ -357,11 +374,72 @@ nr_turn_client_ctx_destroy(nr_turn_client_ctx **ctxp)
   RFREE(ctx->label);
   ctx->label = 0;
 
+  nr_socket_destroy(&ctx->buffered_sock);
   nr_turn_client_cancel(ctx);
 
   RFREE(ctx);
 
   return(0);
+}
+
+static int nr_turn_client_connect(nr_turn_client_ctx *ctx)
+{
+  int r,_status;
+
+  if (ctx->turn_server_addr.protocol != IPPROTO_TCP)
+    ABORT(R_INTERNAL);
+
+  /* Create a buffered socket */
+  if (r=nr_socket_buffered_create(ctx->sock, TURN_MAX_PENDING_BYTES,
+				  &ctx->buffered_sock)) {
+    ABORT(r);
+  }
+
+  r = nr_socket_connect(ctx->sock, &ctx->turn_server_addr);
+
+  /* Stomp the socket with the buffered socket */
+  ctx->sock = ctx->buffered_sock;
+
+  if (r == R_WOULDBLOCK) {
+    NR_SOCKET fd;
+
+    if (r=nr_socket_getfd(ctx->sock, &fd))
+      ABORT(r);
+    // TODO(ekr@rtfm.com): Stop waiting on the socket.
+    NR_ASYNC_WAIT(fd, NR_ASYNC_WAIT_WRITE, nr_turn_client_connected_cb, ctx);
+    ABORT(R_WOULDBLOCK);
+  }
+  if (r) {
+    ABORT(R_IO_ERROR);
+  }
+
+  ctx->state = NR_TURN_CLIENT_STATE_CONNECTED;
+
+  _status = 0;
+abort:
+  return(_status);
+}
+
+static void nr_turn_client_connected_cb(NR_SOCKET s, int how, void *cb_arg)
+{
+  int r, _status;
+  nr_turn_client_ctx *ctx = (nr_turn_client_ctx *)cb_arg;
+
+  /* Assume we connected successfully */
+  if (ctx->state == NR_TURN_CLIENT_STATE_ALLOCATION_WAIT) {
+    if ((r=nr_turn_stun_ctx_start(STAILQ_FIRST(&ctx->stun_ctxs))))
+      ABORT(r);
+    ctx->state = NR_TURN_CLIENT_STATE_ALLOCATING;
+  }
+  else {
+    ctx->state = NR_TURN_CLIENT_STATE_CONNECTED;
+  }
+
+  _status = 0;
+abort:
+  if (_status) {
+    nr_turn_client_failed(ctx);
+  }
 }
 
 int nr_turn_client_cancel(nr_turn_client_ctx *ctx)
@@ -513,9 +591,8 @@ int nr_turn_client_allocate(nr_turn_client_ctx *ctx,
   nr_turn_stun_ctx *stun = 0;
   int r,_status;
 
-  assert(ctx->state == NR_TURN_CLIENT_STATE_INITTED);
-  if (ctx->state != NR_TURN_CLIENT_STATE_INITTED)
-    ABORT(R_ALREADY);
+  assert(ctx->state == NR_TURN_CLIENT_STATE_INITTED ||
+         ctx->state == NR_TURN_CLIENT_STATE_CONNECTED);
 
   ctx->finished_cb=finished_cb;
   ctx->cb_arg=cb_arg;
@@ -528,10 +605,16 @@ int nr_turn_client_allocate(nr_turn_client_ctx *ctx,
   stun->stun->params.allocate_request.lifetime_secs =
       TURN_LIFETIME_REQUEST_SECONDS;
 
-  ctx->state = NR_TURN_CLIENT_STATE_ALLOCATING;
-
-  if ((r=nr_turn_stun_ctx_start(stun)))
-    ABORT(r);
+  if (ctx->state == NR_TURN_CLIENT_STATE_INITTED) {
+    /* We are waiting for connect before we can allocate */
+    ctx->state = NR_TURN_CLIENT_STATE_ALLOCATION_WAIT;
+  } else if (ctx->state == NR_TURN_CLIENT_STATE_CONNECTED) {
+    if ((r=nr_turn_stun_ctx_start(stun)))
+      ABORT(r);
+    ctx->state = NR_TURN_CLIENT_STATE_ALLOCATING;
+  } else {
+    ABORT(R_ALREADY);
+  }
 
   _status=0;
 abort:
